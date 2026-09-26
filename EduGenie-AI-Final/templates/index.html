@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>EduGenie - AI Learning Assistant</title>
+
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+
+<body>
+
+    <!-- =========================
+         HEADER
+    ========================== -->
+
+    <header class="hero">
+
+        <div class="hero-content">
+
+            <p class="eyebrow">
+                AI-POWERED LEARNING
+            </p>
+
+            <h1>
+                EduGenie
+            </h1>
+
+            <p class="subtitle">
+                Ask questions, understand concepts, summarize content,
+                generate quizzes, and create personalized learning paths.
+            </p>
+
+            <p class="powered">
+                Powered by Google Gemini
+            </p>
+
+        </div>
+
+    </header>
+
+
+    <!-- =========================
+         MAIN APPLICATION
+    ========================== -->
+
+    <main class="container">
+
+        <section class="card">
+
+            <!-- Learning task -->
+
+            <div class="form-group">
+
+                <label for="task">
+                    Choose a learning task
+                </label>
+
+                <select id="task">
+
+                    <option value="qa">
+                        Q&amp;A
+                    </option>
+
+                    <option value="explain">
+                        Explain Concept
+                    </option>
+
+                    <option value="quiz">
+                        Quiz Generator
+                    </option>
+
+                    <option value="summarize">
+                        Summarize Text
+                    </option>
+
+                    <option value="recommendations">
+                        Learning Recommendations
+                    </option>
+
+                </select>
+
+            </div>
+
+
+            <!-- User input -->
+
+            <div class="form-group">
+
+                <label for="inputText">
+                    Your topic, question, or text
+                </label>
+
+                <textarea
+                    id="inputText"
+                    placeholder="Enter your question, topic, or educational text here..."
+                    rows="8"
+                ></textarea>
+
+            </div>
+
+
+            <!-- Buttons -->
+
+            <div class="button-row">
+
+                <button
+                    id="generateBtn"
+                    type="button"
+                    class="primary-btn"
+                >
+                    Generate
+                </button>
+
+                <button
+                    id="clearBtn"
+                    type="button"
+                    class="secondary-btn"
+                >
+                    Clear
+                </button>
+
+            </div>
+
+
+            <!-- Loading -->
+
+            <div
+                id="loading"
+                class="loading hidden"
+            >
+
+                <span class="spinner"></span>
+
+                <span>
+                    EduGenie is thinking...
+                </span>
+
+            </div>
+
+
+            <!-- Error -->
+
+            <div
+                id="errorBox"
+                class="error hidden"
+            ></div>
+
+
+            <!-- Result -->
+
+            <section
+                id="resultSection"
+                class="result-section hidden"
+            >
+
+                <div class="result-header">
+
+                    <div>
+
+                        <p class="result-label">
+                            AI RESPONSE
+                        </p>
+
+                        <h2>
+                            EduGenie Result
+                        </h2>
+
+                    </div>
+
+                </div>
+
+
+                <div
+                    id="result"
+                    class="result-content"
+                ></div>
+
+            </section>
+
+        </section>
+
+    </main>
+
+
+    <!-- =========================
+         JAVASCRIPT
+    ========================== -->
+
+    <script>
+
+        const taskSelect =
+            document.getElementById("task");
+
+        const inputText =
+            document.getElementById("inputText");
+
+        const generateBtn =
+            document.getElementById("generateBtn");
+
+        const clearBtn =
+            document.getElementById("clearBtn");
+
+        const loading =
+            document.getElementById("loading");
+
+        const errorBox =
+            document.getElementById("errorBox");
+
+        const resultSection =
+            document.getElementById("resultSection");
+
+        const result =
+            document.getElementById("result");
+
+
+        /*
+         * Backend endpoints
+         */
+
+        const endpoints = {
+
+            qa: "/qa",
+
+            explain: "/explain",
+
+            quiz: "/quiz",
+
+            summarize: "/summarize",
+
+            recommendations:
+                "/learn/recommendations"
+
+        };
+
+
+        /*
+         * Escape HTML
+         *
+         * This prevents AI-generated content
+         * from inserting unsafe HTML.
+         */
+
+        function escapeHtml(value) {
+
+            return String(value)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+
+        }
+
+
+        /*
+         * Convert simple Markdown from Gemini
+         * into readable HTML.
+         */
+
+        function formatMarkdown(value) {
+
+            if (
+                value === null ||
+                value === undefined
+            ) {
+
+                return "";
+
+            }
+
+
+            let text =
+                escapeHtml(value);
+
+
+            /*
+             * Headings
+             */
+
+            text = text.replace(
+                /^### (.*)$/gm,
+                "<h4>$1</h4>"
+            );
+
+            text = text.replace(
+                /^## (.*)$/gm,
+                "<h3>$1</h3>"
+            );
+
+            text = text.replace(
+                /^# (.*)$/gm,
+                "<h2>$1</h2>"
+            );
+
+
+            /*
+             * Bold
+             */
+
+            text = text.replace(
+                /\*\*(.*?)\*\*/g,
+                "<strong>$1</strong>"
+            );
+
+
+            /*
+             * Bullet points
+             */
+
+            text = text.replace(
+                /^[\-\*] (.*)$/gm,
+                "<li>$1</li>"
+            );
+
+
+            /*
+             * Group consecutive list items.
+             */
+
+            text = text.replace(
+                /(<li>.*<\/li>(\s*<li>.*<\/li>)*)/gs,
+                "<ul>$1</ul>"
+            );
+
+
+            /*
+             * Numbered lists
+             */
+
+            text = text.replace(
+                /^\d+\.\s+(.*)$/gm,
+                "<li>$1</li>"
+            );
+
+
+            /*
+             * Horizontal rules
+             */
+
+            text = text.replace(
+                /^---$/gm,
+                "<hr>"
+            );
+
+
+            /*
+             * Line breaks
+             */
+
+            text = text.replace(
+                /\n\n+/g,
+                "<br><br>"
+            );
+
+            text = text.replace(
+                /\n/g,
+                "<br>"
+            );
+
+
+            /*
+             * Clean unwanted <br> immediately
+             * around block elements.
+             */
+
+            text = text.replace(
+                /<br><h/g,
+                "<h"
+            );
+
+            text = text.replace(
+                /<\/h([234])><br>/g,
+                "</h$1>"
+            );
+
+            text = text.replace(
+                /<br><ul>/g,
+                "<ul>"
+            );
+
+            text = text.replace(
+                /<\/ul><br>/g,
+                "</ul>"
+            );
+
+
+            return text;
+
+        }
+
+
+        /*
+         * Format quiz results.
+         */
+
+        function formatQuiz(quiz) {
+
+            if (!Array.isArray(quiz)) {
+
+                return formatMarkdown(
+                    typeof quiz === "string"
+                        ? quiz
+                        : JSON.stringify(
+                            quiz,
+                            null,
+                            2
+                        )
+                );
+
+            }
+
+
+            let html = "";
+
+
+            quiz.forEach(
+                (item, index) => {
+
+                    html += `
+
+                        <div class="quiz-card">
+
+                            <div class="quiz-number">
+                                Question ${index + 1}
+                            </div>
+
+                            <h3 class="quiz-question">
+                                ${escapeHtml(
+                                    item.question || ""
+                                )}
+                            </h3>
+
+                            <div class="quiz-options">
+                    `;
+
+
+                    if (
+                        Array.isArray(
+                            item.options
+                        )
+                    ) {
+
+                        item.options.forEach(
+                            (option, optionIndex) => {
+
+                                const letter =
+                                    String.fromCharCode(
+                                        65 + optionIndex
+                                    );
+
+
+                                html += `
+
+                                    <div class="quiz-option">
+
+                                        <span class="option-letter">
+                                            ${letter}
+                                        </span>
+
+                                        <span>
+                                            ${escapeHtml(
+                                                option
+                                            )}
+                                        </span>
+
+                                    </div>
+
+                                `;
+
+                            }
+                        );
+
+                    }
+
+
+                    html += `
+
+                            </div>
+
+                            <div class="correct-answer">
+
+                                <strong>
+                                    Correct Answer:
+                                </strong>
+
+                                ${escapeHtml(
+                                    item.answer || ""
+                                )}
+
+                            </div>
+
+                        </div>
+
+                    `;
+
+                }
+            );
+
+
+            return html;
+
+        }
+
+
+        /*
+         * Display API response.
+         */
+
+        function displayResult(
+            data,
+            task
+        ) {
+
+            if (!data) {
+
+                result.innerHTML =
+                    "<p>No result was returned.</p>";
+
+                return;
+
+            }
+
+
+            if (
+                task === "qa" &&
+                data.answer !== undefined
+            ) {
+
+                result.innerHTML =
+                    formatMarkdown(
+                        data.answer
+                    );
+
+                return;
+
+            }
+
+
+            if (
+                task === "explain" &&
+                data.explanation !== undefined
+            ) {
+
+                result.innerHTML =
+                    formatMarkdown(
+                        data.explanation
+                    );
+
+                return;
+
+            }
+
+
+            if (
+                task === "summarize" &&
+                data.summary !== undefined
+            ) {
+
+                result.innerHTML =
+                    formatMarkdown(
+                        data.summary
+                    );
+
+                return;
+
+            }
+
+
+            if (
+                task === "recommendations" &&
+                data.recommendations !== undefined
+            ) {
+
+                result.innerHTML =
+                    formatMarkdown(
+                        data.recommendations
+                    );
+
+                return;
+
+            }
+
+
+            if (
+                task === "quiz" &&
+                data.quiz !== undefined
+            ) {
+
+                result.innerHTML =
+                    formatQuiz(
+                        data.quiz
+                    );
+
+                return;
+
+            }
+
+
+            /*
+             * Fallback
+             */
+
+            result.innerHTML = `
+
+                <pre>
+${escapeHtml(
+    JSON.stringify(
+        data,
+        null,
+        2
+    )
+)}
+                </pre>
+
+            `;
+
+        }
+
+
+        /*
+         * Read backend error.
+         */
+
+        async function getErrorMessage(
+            response
+        ) {
+
+            try {
+
+                const errorData =
+                    await response.json();
+
+
+                if (
+                    typeof errorData.detail ===
+                    "string"
+                ) {
+
+                    return errorData.detail;
+
+                }
+
+
+                if (
+                    Array.isArray(
+                        errorData.detail
+                    )
+                ) {
+
+                    return errorData.detail
+                        .map(error => {
+
+                            if (
+                                typeof error ===
+                                "string"
+                            ) {
+
+                                return error;
+
+                            }
+
+                            return (
+                                error.msg ||
+                                JSON.stringify(error)
+                            );
+
+                        })
+                        .join("\n");
+
+                }
+
+
+                return JSON.stringify(
+                    errorData
+                );
+
+            }
+
+            catch {
+
+                return (
+                    `Server returned HTTP ` +
+                    `${response.status}.`
+                );
+
+            }
+
+        }
+
+
+        /*
+         * Generate AI response.
+         */
+
+        async function generate() {
+
+            const text =
+                inputText.value.trim();
+
+            const task =
+                taskSelect.value;
+
+
+            /*
+             * Validate input.
+             */
+
+            if (!text) {
+
+                errorBox.textContent =
+                    "Please enter a question, topic, or text.";
+
+                errorBox.classList.remove(
+                    "hidden"
+                );
+
+                resultSection.classList.add(
+                    "hidden"
+                );
+
+                return;
+
+            }
+
+
+            const endpoint =
+                endpoints[task];
+
+
+            if (!endpoint) {
+
+                errorBox.textContent =
+                    "Invalid learning task.";
+
+                errorBox.classList.remove(
+                    "hidden"
+                );
+
+                return;
+
+            }
+
+
+            /*
+             * Reset previous UI.
+             */
+
+            errorBox.classList.add(
+                "hidden"
+            );
+
+            resultSection.classList.add(
+                "hidden"
+            );
+
+            result.innerHTML = "";
+
+
+            /*
+             * Show loading state.
+             */
+
+            loading.classList.remove(
+                "hidden"
+            );
+
+            generateBtn.disabled = true;
+
+
+            try {
+
+                const response =
+                    await fetch(
+                        endpoint,
+                        {
+
+                            method: "POST",
+
+                            headers: {
+
+                                "Content-Type":
+                                    "application/json"
+
+                            },
+
+                            body:
+                                JSON.stringify(
+                                    {
+                                        text: text
+                                    }
+                                )
+
+                        }
+                    );
+
+
+                /*
+                 * Handle HTTP errors.
+                 */
+
+                if (!response.ok) {
+
+                    const message =
+                        await getErrorMessage(
+                            response
+                        );
+
+                    throw new Error(
+                        message
+                    );
+
+                }
+
+
+                /*
+                 * Read JSON.
+                 */
+
+                const data =
+                    await response.json();
+
+
+                /*
+                 * Display response.
+                 */
+
+                displayResult(
+                    data,
+                    task
+                );
+
+
+                resultSection.classList.remove(
+                    "hidden"
+                );
+
+            }
+
+            catch (error) {
+
+                console.error(
+                    "EduGenie error:",
+                    error
+                );
+
+
+                errorBox.textContent =
+                    error.message ||
+                    "Something went wrong.";
+
+                errorBox.classList.remove(
+                    "hidden"
+                );
+
+            }
+
+            finally {
+
+                /*
+                 * ALWAYS hide loading indicator.
+                 */
+
+                loading.classList.add(
+                    "hidden"
+                );
+
+                generateBtn.disabled = false;
+
+            }
+
+        }
+
+
+        /*
+         * Generate button.
+         */
+
+        generateBtn.addEventListener(
+            "click",
+            generate
+        );
+
+
+        /*
+         * Clear button.
+         */
+
+        clearBtn.addEventListener(
+            "click",
+            () => {
+
+                inputText.value = "";
+
+                result.innerHTML = "";
+
+                errorBox.textContent = "";
+
+                resultSection.classList.add(
+                    "hidden"
+                );
+
+                errorBox.classList.add(
+                    "hidden"
+                );
+
+                loading.classList.add(
+                    "hidden"
+                );
+
+            }
+        );
+
+
+        /*
+         * Ctrl + Enter shortcut.
+         */
+
+        inputText.addEventListener(
+            "keydown",
+            event => {
+
+                if (
+                    event.ctrlKey &&
+                    event.key === "Enter"
+                ) {
+
+                    generate();
+
+                }
+
+            }
+        );
+
+
+        /*
+         * Change placeholder based
+         * on selected task.
+         */
+
+        taskSelect.addEventListener(
+            "change",
+            () => {
+
+                const placeholders = {
+
+                    qa:
+                        "Example: What is photosynthesis?",
+
+                    explain:
+                        "Example: Newton's second law of motion",
+
+                    quiz:
+                        "Example: Photosynthesis",
+
+                    summarize:
+                        "Paste the educational text you want to summarize...",
+
+                    recommendations:
+                        "Example: Python programming for beginners"
+
+                };
+
+
+                inputText.placeholder =
+                    placeholders[
+                        taskSelect.value
+                    ];
+
+            }
+        );
+
+    </script>
+
+</body>
+
+</html>
